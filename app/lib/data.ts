@@ -135,7 +135,7 @@ export async function fetchFilteredInvoices(
 export async function fetchInvoicesPages(query: string) {
   const client = await db.connect();
   try {
-    const count = await sql`SELECT COUNT(*)
+    const count = await client.sql`SELECT COUNT(*)
     FROM invoices
     JOIN customers ON invoices.customer_id = customers.id
     WHERE
