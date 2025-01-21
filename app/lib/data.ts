@@ -9,8 +9,6 @@ import {
 } from "./definitions";
 import { formatCurrency } from "./utils";
 
-const client = await db.connect();
-
 export async function fetchRevenue() {
   try {
     // Artificially delay a response for demo purposes.
@@ -18,11 +16,11 @@ export async function fetchRevenue() {
 
     // console.log('Fetching revenue data...');
     // await new Promise((resolve) => setTimeout(resolve, 3000));
-
+    const client = await db.connect();
     const data = await client.sql<Revenue>`SELECT * FROM revenue`;
 
     // console.log('Data fetch completed after 3 seconds.');
-
+    client.release();
     return data.rows;
   } catch (error) {
     console.error("Database Error:", error);
@@ -32,13 +30,14 @@ export async function fetchRevenue() {
 
 export async function fetchLatestInvoices() {
   try {
+    const client = await db.connect();
     const data = await client.sql<LatestInvoiceRaw>`
       SELECT invoices.amount, customers.name, customers.image_url, customers.email, invoices.id
       FROM invoices
       JOIN customers ON invoices.customer_id = customers.id
       ORDER BY invoices.date DESC
       LIMIT 5`;
-
+    client.release();
     const latestInvoices = data.rows.map((invoice) => ({
       ...invoice,
       amount: formatCurrency(invoice.amount),
@@ -55,6 +54,7 @@ export async function fetchCardData() {
     // You can probably combine these into a single SQL query
     // However, we are intentionally splitting them to demonstrate
     // how to initialize multiple queries in parallel with JS.
+    const client = await db.connect();
     const invoiceCountPromise = client.sql`SELECT COUNT(*) FROM invoices`;
     const customerCountPromise = client.sql`SELECT COUNT(*) FROM customers`;
     const invoiceStatusPromise = client.sql`SELECT
@@ -67,7 +67,7 @@ export async function fetchCardData() {
       customerCountPromise,
       invoiceStatusPromise,
     ]);
-
+    client.release();
     const numberOfInvoices = Number(data[0].rows[0].count ?? "0");
     const numberOfCustomers = Number(data[1].rows[0].count ?? "0");
     const totalPaidInvoices = formatCurrency(data[2].rows[0].paid ?? "0");
@@ -93,6 +93,7 @@ export async function fetchFilteredInvoices(
   const offset = (currentPage - 1) * ITEMS_PER_PAGE;
 
   try {
+    const client = await db.connect();
     const invoices = await client.sql<InvoicesTable>`
       SELECT
         invoices.id,
@@ -113,7 +114,7 @@ export async function fetchFilteredInvoices(
       ORDER BY invoices.date DESC
       LIMIT ${ITEMS_PER_PAGE} OFFSET ${offset}
     `;
-
+    client.release();
     return invoices.rows;
   } catch (error) {
     console.error("Database Error:", error);
@@ -123,6 +124,7 @@ export async function fetchFilteredInvoices(
 
 export async function fetchInvoicesPages(query: string) {
   try {
+    const client = await db.connect();
     const count = await sql`SELECT COUNT(*)
     FROM invoices
     JOIN customers ON invoices.customer_id = customers.id
@@ -133,7 +135,7 @@ export async function fetchInvoicesPages(query: string) {
       invoices.date::text ILIKE ${`%${query}%`} OR
       invoices.status ILIKE ${`%${query}%`}
   `;
-
+    client.release();
     const totalPages = Math.ceil(Number(count.rows[0].count) / ITEMS_PER_PAGE);
     return totalPages;
   } catch (error) {
@@ -144,6 +146,7 @@ export async function fetchInvoicesPages(query: string) {
 
 export async function fetchInvoiceById(id: string) {
   try {
+    const client = await db.connect();
     const data = await client.sql<InvoiceForm>`
       SELECT
         invoices.id,
@@ -153,7 +156,7 @@ export async function fetchInvoiceById(id: string) {
       FROM invoices
       WHERE invoices.id = ${id};
     `;
-
+    client.release();
     const invoice = data.rows.map((invoice) => ({
       ...invoice,
       // Convert amount from cents to dollars
@@ -169,6 +172,7 @@ export async function fetchInvoiceById(id: string) {
 
 export async function fetchCustomers() {
   try {
+    const client = await db.connect();
     const data = await client.sql<CustomerField>`
       SELECT
         id,
@@ -176,7 +180,7 @@ export async function fetchCustomers() {
       FROM customers
       ORDER BY name ASC
     `;
-
+    client.release();
     const customers = data.rows;
     return customers;
   } catch (err) {
@@ -187,6 +191,7 @@ export async function fetchCustomers() {
 
 export async function fetchFilteredCustomers(query: string) {
   try {
+    const client = await db.connect();
     const data = await client.sql<CustomersTableType>`
 		SELECT
 		  customers.id,
@@ -204,7 +209,7 @@ export async function fetchFilteredCustomers(query: string) {
 		GROUP BY customers.id, customers.name, customers.email, customers.image_url
 		ORDER BY customers.name ASC
 	  `;
-
+    client.release();
     const customers = data.rows.map((customer) => ({
       ...customer,
       total_pending: formatCurrency(customer.total_pending),
